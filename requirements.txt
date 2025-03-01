@@ -3,11 +3,11 @@ pandas==1.5.3
 scikit-learn==1.2.2
 numpy==1.24.2
 tldextract==3.4.0
-nltk==3.8.1
-bs4==0.0.1  # BeautifulSoup for HTML parsing
+nltk==3.8.1  # Corrected typo
+beautifulsoup4==4.11.1  # BeautifulSoup for HTML parsing (use beautifulsoup4 instead of 'bs4')
 
 # Deep Learning (If Using NLP-based Phishing Detection)
-tensorflow==2.11.0  # If using deep learning models like BERT
+tensorflow==2.17.0  # If using deep learning models like BERT
 torch==1.13.1  # If using PyTorch-based models
 transformers==4.27.4  # For NLP-based feature extraction (BERT, etc.)
 
