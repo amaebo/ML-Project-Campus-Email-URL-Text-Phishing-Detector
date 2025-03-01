@@ -1,11 +1,25 @@
+# Core Dependencies
 pandas==1.5.3
 scikit-learn==1.2.2
 numpy==1.24.2
 tldextract==3.4.0
 nltk==3.8.1
 re2==0.2.25
-flask==2.2.3  # If you're deploying an API
+bs4==0.0.1  # BeautifulSoup for HTML parsing
+
+# Deep Learning (If Using NLP-based Phishing Detection)
 tensorflow==2.11.0  # If using deep learning models like BERT
 torch==1.13.1  # If using PyTorch-based models
-transformers==4.27.4  # For NLP-based phishing detection (BERT, etc.)
-bs4==0.0.1  # BeautifulSoup for HTML parsing (optional)
+transformers==4.27.4  # For NLP-based feature extraction (BERT, etc.)
+
+# API Deployment Dependencies
+flask==2.2.3  # If using Flask for the API
+flask-cors==3.0.10  # To handle Cross-Origin Resource Sharing (CORS)
+fastapi==0.95.0  # If using FastAPI instead of Flask
+uvicorn==0.22.0  # ASGI server for FastAPI
+gunicorn==20.1.0  # Production WSGI server for Flask/FastAPI
+
+# Additional Utilities
+joblib==1.2.0  # For saving/loading ML models
+requests==2.28.2  # For making API requests (optional)
+python-dotenv==1.0.0  # To manage environment variables
