@@ -15,7 +15,7 @@ This project is a **phishing email detector** that analyzes different components
 
 ## Installation
 
-### **1. Set Up the Virtual Environment**
+### **1. Set Up the Virtual Environment in Python 3.10.0**
 
 ```bash
 python3 -m venv venv
