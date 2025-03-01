@@ -4,7 +4,6 @@ scikit-learn==1.2.2
 numpy==1.24.2
 tldextract==3.4.0
 nltk==3.8.1
-re2==0.2.25
 bs4==0.0.1  # BeautifulSoup for HTML parsing
 
 # Deep Learning (If Using NLP-based Phishing Detection)
