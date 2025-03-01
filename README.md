@@ -41,3 +41,7 @@ pip install -r requirements.txt
 - **Mai Nguyen**
 
 
+# Updates
+ Date       | Contributor   | Update Description                                          |
+|------------|---------------|-------------------------------------------------------------|
+|3/1/2025|Ama & Mai| Project Planning and Repository set up |
