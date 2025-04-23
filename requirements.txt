@@ -3,7 +3,7 @@ pandas==1.5.3
 scikit-learn==1.2.2
 numpy==1.24.2
 tldextract==3.4.0
-nltk==3.8.1  # Corrected typo
+nltk==3.8.1  
 beautifulsoup4==4.11.1  # BeautifulSoup for HTML parsing (use beautifulsoup4 instead of 'bs4')
 
 # Deep Learning (If Using NLP-based Phishing Detection)

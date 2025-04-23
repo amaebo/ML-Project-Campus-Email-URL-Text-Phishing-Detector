@@ -8,6 +8,7 @@ import re
 from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import TfidfVectorizer
 import tldextract  # For URL domain parsing
+from scipy.sparse import hstack
 
 # Feature Engineering
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -39,11 +40,13 @@ def preprocess(dataset):
     if dataset.empty:
         raise ValueError("Dataset is empty.")
     
-    # Check for missing values
+    # Debugging: Check for missing values
     missing_values = dataset.isnull().sum()
     if missing_values.any():
         print("Warning: Missing values found in the following columns:")
         print(missing_values[missing_values > 0])
+    total_rows = len(dataset)
+    print(f"Null subjects: {28} out of {total_rows} rows ({(28/total_rows)*100:.2f}%)")
 
     # Check for expected columns 
     required_columns = ['sender', 'receiver', 'date', 'subject', 'body', 'label', 'urls']
@@ -85,10 +88,24 @@ def sender_encoding(df):
 
     #Remove extra columns so only 'sender' column exists
     df.drop(columns=['sender_email','sender_domain'], inplace=True)
+    print(df['sender'].nunique())
 
-     
 
-    # Top 100 Encoding (placeholder for actual implementation)
+    # Step 1: One-Hot Encode Top Domains
+    top_k = 100
+    top_senders = df['sender'].value_counts().nlargest(top_k).index.tolist()
+    
+    encoder = OneHotEncoder(
+    categories=[top_senders],  # Explicit categories for consistency
+    sparse_output=True,        # Memory efficiency
+    handle_unknown='ignore'    # Treat new domains as all zeros
+    )
+    sender_encoded= encoder.fit_transform(df[['sender']])
+    # Step 2: Add 'domain_other' flag
+    df['domain_other'] = (~df['sender'].isin(top_senders)).astype(int)
+    final_features = hstack([sender_encoded, df[['domain_other']].values])
+
+    
     
     return df
 
