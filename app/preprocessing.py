@@ -16,98 +16,177 @@ from sklearn.preprocessing import OneHotEncoder
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
-def preprocess(dataset):
-    ''' 
-    Preprocesses the entire dataset, handles missing data, and extracts features 
-    for further processing and model training.
+PHISHING_KEYWORDS = {"urgent", "verify", "click", "account", "login", "security", "alert", "confirm"}
 
-    Parameters:
-    - dataset (pd.DataFrame): Full unprocessed dataset containing columns such as 
-      'sender', 'receiver', 'date', 'subject', 'body', 'label', 'urls'.
+def preprocess(dataset):
+    """
+    Master pipeline to preprocess dataset:
+    - Extracts sender domain features
+    - Extracts phishing-aware TF-IDF body features
+    - Returns model-ready DataFrame
+
+    Parameters
+    ----------
+    dataset : pd.DataFrame
+        Full email dataset with at least 'sender' and 'body' columns.
+
+    Returns
+    -------
+    pd.DataFrame
+        Combined feature matrix of encoded sender domains and body TF-IDF features.
     
-    Returns:
-    - processed_df (pd.DataFrame): Processed data frame with extracted features.
-    
-    Raises:
-    - ValueError: If the dataset is not a pandas DataFrame or is empty.
-    '''
-    
-    # Check if the dataset is a pandas DataFrame
+    Raises
+    ------
+    ValueError
+        If the input is not a DataFrame or required columns are missing.
+    """
+    # Validate input
     if not isinstance(dataset, pd.DataFrame):
         raise ValueError("Input dataset must be a pandas DataFrame.")
-    
-    # Check if the dataset is empty
     if dataset.empty:
         raise ValueError("Dataset is empty.")
     
-    # Debugging: Check for missing values
-    missing_values = dataset.isnull().sum()
-    if missing_values.any():
-        print("Warning: Missing values found in the following columns:")
-        print(missing_values[missing_values > 0])
-    total_rows = len(dataset)
-    print(f"Null subjects: {28} out of {total_rows} rows ({(28/total_rows)*100:.2f}%)")
-
-    # Check for expected columns 
-    required_columns = ['sender', 'receiver', 'date', 'subject', 'body', 'label', 'urls']
+    # Check for required columns
+    required_columns = ['sender', 'body']
     missing_columns = [col for col in required_columns if col not in dataset.columns]
     if missing_columns:
         raise ValueError(f"Missing expected columns: {', '.join(missing_columns)}")
-    
-    # Sender Preprocessing 
-    dataset = sender_encoding(dataset)
-    
-    # Body Preprocessing (placeholder for actual implementation)
-    
-    # URL Preprocessing (placeholder for actual implementation)
 
-    return dataset
+    # Extract Features: sender,body, subject, urls. --- NOT DONE YET
+    sender_features_df = sender_extraction(dataset)
+    body_features_df = body_extraction(dataset)
+
+    # Merge horizontally --- NOT DONE YET
+    final_features_df = pd.concat([
+        sender_features_df.reset_index(drop=True),
+        body_features_df.reset_index(drop=True)
+    ], axis=1)
+
+    return final_features_df
 
 
 # ====== Sender Extraction and Preprocessing ======
-def sender_encoding(df):
-    ''' 
-    Encodes the domains of the senders using a hybrid of one-hot encoding and frequency encoding.
+def sender_extraction(df, top_k=100):
+    """
+    Extracts sender features using:
+    - One-hot encoding for top-K domains
+    - A binary 'domain_other' flag for rare domains
+    - Log-frequency encoding for all domains
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing a 'sender' column with email addresses.
     
-    Parameters:
-    - df (pd.DataFrame): Input DataFrame containing a 'sender' column with email addresses.
-
-    Returns:
-    - df (pd.DataFrame): DataFrame with new columns 'sender_email' and 'sender_domain'.
+    top_k : int, optional
+        Number of most frequent domains to one-hot encode. Default is 100.
     
-    Raises:
-    - ValueError: If the 'sender' column is not found in the DataFrame.
-    '''
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with three types of features:
+        - One-hot columns for top domains
+        - Binary 'domain_other' flag
+        - Continuous 'domain_frequency' column (log-scaled)
     
-    # Get the sender email (the main part of the feature)
-    df['sender_email'] = df['sender'].str.extract(r'<(.*?)>')[0].fillna(df['sender']) # Extract the email (whether inside < > or as plain email)
+    Raises
+    ------
+    ValueError
+        If 'sender' column is missing.
+    """
+    if 'sender' not in df.columns:
+        raise ValueError("The DataFrame must contain a 'sender' column.")
 
-    # Extract the domain from the sender_email
-    df['sender_domain'] = df['sender_email'].str.extract(r'@([a-zA-Z0-9.-]+)')[0]
-    df['sender'] = df['sender_domain'].str.lower()
+    # Step 1: Extract sender domain
+    df['sender_email'] = df['sender'].str.extract(r'<(.*?)>')[0].fillna(df['sender'])
+    df['sender_domain'] = df['sender_email'].str.extract(r'@([a-zA-Z0-9.-]+)')[0].str.lower()
 
-    #Remove extra columns so only 'sender' column exists
-    df.drop(columns=['sender_email','sender_domain'], inplace=True)
-    print(df['sender'].nunique())
+    # Step 2: Calculate frequency (and log-frequency)
+    domain_counts = df['sender_domain'].value_counts()
+    df['domain_frequency'] = df['sender_domain'].map(domain_counts)
+    df['domain_frequency'] = np.log1p(df['domain_frequency'])  # log(1 + count)
+
+    # Step 3: One-hot encode top-K domains
+    top_domains = domain_counts.nlargest(top_k).index.tolist()
+    df['domain_other'] = (~df['sender_domain'].isin(top_domains)).astype(int)
+
+    encoder = OneHotEncoder(categories=[top_domains], sparse_output=False, handle_unknown='ignore')
+    domain_ohe = encoder.fit_transform(df[['sender_domain']])
+    domain_ohe_df = pd.DataFrame(domain_ohe, columns=encoder.get_feature_names_out(['sender_domain']))
+
+    # Step 4: Build final feature set
+    sender_features_df = pd.concat([
+        domain_ohe_df.reset_index(drop=True),
+        df[['domain_other', 'domain_frequency']].reset_index(drop=True)
+    ], axis=1)
+
+    return sender_features_df
 
 
-    # Step 1: One-Hot Encode Top Domains
-    top_k = 100
-    top_senders = df['sender'].value_counts().nlargest(top_k).index.tolist()
+# ====== Body Cleaning and Extraction (TF-IDF) ======
+def body_extraction(df):
+    """
+    Extracts TF-IDF features from the 'body' column of emails.
+
+    Steps:
+    - Cleans HTML, URLs, and special characters
+    - Tokenizes while boosting phishing keywords
+    - Applies TF-IDF vectorization using unigrams and bigrams
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame with a 'body' column.
+
+    Returns
+    -------
+    pd.DataFrame
+        TF-IDF feature DataFrame.
     
-    encoder = OneHotEncoder(
-    categories=[top_senders],  # Explicit categories for consistency
-    sparse_output=True,        # Memory efficiency
-    handle_unknown='ignore'    # Treat new domains as all zeros
+    Raises
+    ------
+    ValueError
+        If 'body' column is missing from the input DataFrame.
+    """
+    if 'body' not in df.columns:
+        raise ValueError("The DataFrame must contain a 'body' column.")
+
+    # Inner function to clean text
+    def clean(text):
+        if pd.isnull(text):
+            return ""
+        text = BeautifulSoup(text, "html.parser").get_text()  # Remove HTML
+        text = re.sub(r'\S+@\S+', 'emailaddr', text)          # Mask emails
+        text = re.sub(r'http\S+|www\S+|https\S+', 'urladdr', text)  # Mask URLs
+        text = text.lower()                                   # Lowercase for uniformity
+        text = re.sub(r'[^a-z\s]', '', text)                  # Remove punctuation
+        text = re.sub(r'\s+', ' ', text).strip()              # Normalize whitespace
+        return text
+
+    # Tokenizer that repeats phishing keywords to increase their TF-IDF weight
+    def phishing_tokenizer(text):
+        tokens = text.split()
+        return tokens + [kw for kw in tokens if kw in PHISHING_KEYWORDS] * 2
+
+    # Clean the body column
+    df['clean_body'] = df['body'].apply(clean)
+
+    # TF-IDF vectorizer setup
+    vectorizer = TfidfVectorizer(
+        max_features=15000,
+        min_df=5,
+        max_df=0.8,
+        ngram_range=(1, 2),
+        tokenizer=phishing_tokenizer
     )
-    sender_encoded= encoder.fit_transform(df[['sender']])
-    # Step 2: Add 'domain_other' flag
-    df['domain_other'] = (~df['sender'].isin(top_senders)).astype(int)
-    final_features = hstack([sender_encoded, df[['domain_other']].values])
 
-    
-    
-    return df
+    # Fit and transform text into TF-IDF matrix
+    tfidf_matrix = vectorizer.fit_transform(df['clean_body'])
+
+    # Convert to DataFrame
+    tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=vectorizer.get_feature_names_out())
+
+    return tfidf_df
 
 
 class URLFeatureExtractor(BaseEstimator, TransformerMixin):
