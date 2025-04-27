@@ -23,6 +23,7 @@ def preprocess(dataset):
     Master pipeline to preprocess dataset:
     - Extracts sender domain features
     - Extracts phishing-aware TF-IDF body features
+    - Extracts subject features
     - Returns model-ready DataFrame
 
     Parameters
@@ -55,6 +56,9 @@ def preprocess(dataset):
     # Extract Features: sender,body, subject, urls. --- NOT DONE YET
     sender_features_df = sender_extraction(dataset)
     body_features_df = body_extraction(dataset)
+    subject_features_df = subject_extraction(dataset)
+    url_features_df = URLFeatureExtractor().transform(dataset['body'] + " " + dataset['subject'])
+
 
     # Merge horizontally --- NOT DONE YET
     final_features_df = pd.concat([
@@ -188,7 +192,71 @@ def body_extraction(df):
 
     return tfidf_df
 
+# ====== Subject Feature Extraction ======
+def subject_extraction(df):
+    """
+    Extracts phishing-related features from the subject line of emails and computes a subject_phish_score.
 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing a 'subject' column.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing a single 'subject_phish_score' column.
+
+    Raises
+    ------
+    ValueError
+        If 'subject' column is missing from the input DataFrame.
+    """
+    if 'subject' not in df.columns:
+        raise ValueError("The DataFrame must contain a 'subject' column.")
+
+    # Define urgency keywords
+    urgency_keywords = ['urgent', 'immediate', 'important', 'verify', 'action required', 'attention']
+
+    # Define punctuation weighting
+    heavy_punctuations = {
+        '!': 2,
+        '?': 1.5,
+        '.': 0.5
+    }
+
+    def extract_subject_features(subject):
+        if pd.isnull(subject):
+            return 0.0  # Null subjects treated as no phishing signals
+
+        # Clean text
+        subject = subject.lower().strip()
+
+        # Calculate urgency score
+        urgency_score = sum(subject.count(word) for word in urgency_keywords)
+
+        # Calculate punctuation score
+        punctuation_score = sum(subject.count(punct) * weight for punct, weight in heavy_punctuations.items())
+
+        # Detect fake thread
+        fake_thread_flag = 1 if subject.startswith('re:') or subject.startswith('fwd:') else 0
+
+        # Aggregate raw score
+        raw_score = urgency_score * 2 + punctuation_score + fake_thread_flag * 1.5
+
+        return raw_score
+
+    # Apply feature extraction
+    df['subject_raw_score'] = df['subject'].apply(extract_subject_features)
+
+    # Normalize to 0–1 range
+    scaler = MinMaxScaler()
+    df['subject_phish_score'] = scaler.fit_transform(df[['subject_raw_score']])
+
+    # Only return the final normalized score
+    return df[['subject_phish_score']]
+
+# ====== URL Feature Extraction ======
 class URLFeatureExtractor(BaseEstimator, TransformerMixin):
     """
     This is a transformer that uses scikit-learn to extract features
