@@ -41,29 +41,33 @@ def preprocess(dataset):
     ValueError
         If the input is not a DataFrame or required columns are missing.
     """
-    # Validate input
+    # ====== Input Validation ======
     if not isinstance(dataset, pd.DataFrame):
         raise ValueError("Input dataset must be a pandas DataFrame.")
     if dataset.empty:
         raise ValueError("Dataset is empty.")
-    
-    # Check for required columns
-    required_columns = ['sender', 'body']
+
+    required_columns = ['sender', 'body', 'subject']
     missing_columns = [col for col in required_columns if col not in dataset.columns]
     if missing_columns:
         raise ValueError(f"Missing expected columns: {', '.join(missing_columns)}")
 
-    # Extract Features: sender,body, subject, urls. --- NOT DONE YET
+    # ====== Feature Extraction ======
     sender_features_df = sender_extraction(dataset)
     body_features_df = body_extraction(dataset)
     subject_features_df = subject_extraction(dataset)
-    url_features_df = URLFeatureExtractor().transform(dataset['body'] + " " + dataset['subject'])
 
+    # Combine subject + body text for URL extraction
+    combined_text = dataset['subject'].fillna('') + ' ' + dataset['body'].fillna('')
+    url_extractor = URLFeatureExtractor()
+    url_features_df = url_extractor.transform(combined_text)
 
-    # Merge horizontally --- NOT DONE YET
+    # ====== Combine Features ======
     final_features_df = pd.concat([
         sender_features_df.reset_index(drop=True),
-        body_features_df.reset_index(drop=True)
+        body_features_df.reset_index(drop=True),
+        subject_features_df.reset_index(drop=True),
+        url_features_df.reset_index(drop=True)
     ], axis=1)
 
     return final_features_df
