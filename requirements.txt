@@ -3,23 +3,27 @@ pandas==1.5.3
 scikit-learn==1.2.2
 numpy==1.24.2
 tldextract==3.4.0
-nltk==3.8.1  
-beautifulsoup4==4.11.1  # BeautifulSoup for HTML parsing (use beautifulsoup4 instead of 'bs4')
+nltk==3.8.1
+beautifulsoup4==4.11.1
 
 # Deep Learning (If Using NLP-based Phishing Detection)
-tensorflow==2.17.0  # If using deep learning models like BERT
-torch==1.13.1  # If using PyTorch-based models
-transformers==4.27.4  # For NLP-based feature extraction (BERT, etc.)
+tensorflow==2.17.0
+torch==1.13.1
+transformers==4.27.4
 
 # API Deployment Dependencies
-flask==2.2.3  # If using Flask for the API
-flask-cors==3.0.10  # To handle Cross-Origin Resource Sharing (CORS)
-fastapi==0.95.0  # If using FastAPI instead of Flask
-uvicorn==0.22.0  # ASGI server for FastAPI
-gunicorn==20.1.0  # Production WSGI server for Flask/FastAPI
+flask==2.2.3
+flask-cors==3.0.10
+fastapi==0.95.0
+uvicorn==0.22.0
+gunicorn==20.1.0
 
 # Additional Utilities
-joblib==1.2.0  # For saving/loading ML models
-requests==2.28.2  # For making API requests (optional)
-python-dotenv==1.0.0  # To manage environment variables
+joblib==1.2.0
+requests==2.28.2
+python-dotenv==1.0.0
 pytest>=7.0.0
+
+# Optional (Visualization for Evaluation)
+matplotlib==3.7.1
+seaborn==0.12.2
