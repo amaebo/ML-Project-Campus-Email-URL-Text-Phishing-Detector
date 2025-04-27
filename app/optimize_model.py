@@ -6,6 +6,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from scipy.stats import loguniform
 import preprocessing
+import joblib
 
 # ======================
 # Load and Preprocess Data
@@ -133,3 +134,8 @@ print(f"False Negatives (Phishing misclassified as Legitimate): {FN}")
 
 print("\n=== Test Set Accuracy Score ===")
 print(accuracy_score(y_test, y_test_pred))
+
+# Save the trained best model
+joblib.dump(best_lr_model, 'best_logistic_regression_model.pkl')
+
+print("\n✅ Model saved successfully as 'best_logistic_regression_model.pkl'")
