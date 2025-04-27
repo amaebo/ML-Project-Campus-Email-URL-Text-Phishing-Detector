@@ -257,22 +257,30 @@ def subject_extraction(df):
     return df[['subject_phish_score']]
 
 # ====== URL Feature Extraction ======
+import re
+import pandas as pd
+import tldextract
+from sklearn.base import BaseEstimator, TransformerMixin
+
 class URLFeatureExtractor(BaseEstimator, TransformerMixin):
     """
-    This is a transformer that uses scikit-learn to extract features
-    from URLs found in email text (subject + body) which may be suspicious.
+    Scikit-learn compatible transformer to extract URL-related features from email text.
+    Produces both detailed risk counts and a binary suspicious flag.
     """
 
     def __init__(self,
                  suspicious_tlds=None,
                  suspicious_keywords=None):
         """
-        :param suspicious_tlds: A list of TLDs (e.g., ['ru', 'cn', 'xyz']) that
-                                are often associated with phishing or malicious sites.
-        :param suspicious_keywords: A list of substrings often associated with
-                                   phishing or malicious sites (e.g., ['login', 'verify']).
+        Initializes the extractor with optional custom suspicious TLDs and keywords.
+        
+        Parameters
+        ----------
+        suspicious_tlds : set of str, optional
+            Top-Level Domains often associated with phishing (e.g., '.ru', '.cn').
+        suspicious_keywords : set of str, optional
+            Substrings in URLs that might indicate phishing intent (e.g., 'login', 'verify').
         """
-        # Default sets if not provided
         if suspicious_tlds is None:
             suspicious_tlds = {'ru', 'cn', 'xyz', 'tk', 'pw', 'top'}
         if suspicious_keywords is None:
@@ -282,47 +290,65 @@ class URLFeatureExtractor(BaseEstimator, TransformerMixin):
         self.suspicious_keywords = suspicious_keywords
 
     def fit(self, X, y=None):
-        # Nothing to fit in this transformer
+        """
+        Required by sklearn API. No fitting necessary for this stateless transformer.
+        """
         return self
 
     def transform(self, X):
         """
-        :param X: A pandas Series or list of raw email text (subject + body).
-        :return: A pandas DataFrame with features about URLs.
+        Transforms a Series or list of email texts into URL risk features.
+
+        Parameters
+        ----------
+        X : list or pandas.Series
+            Raw email body/subject text.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with the following columns:
+            - num_urls
+            - num_ip_urls
+            - num_suspicious_tld
+            - num_suspicious_keyword
+            - num_suspicious_urls
+            - suspicious_url_flag
         """
         features = []
-        for text in X:
-            urls = self._extract_urls(str(text))
 
-            # Basic counts
+        for text in X:
+            urls = self._extract_urls(str(text))  # Extract all URLs from email text
+
+            # Initialize feature counts
             num_urls = len(urls)
-            num_suspicious_urls = 0
             num_ip_urls = 0
             num_suspicious_tld = 0
             num_suspicious_keyword = 0
 
+            # Analyze each URL
             for url in urls:
-                # Check if URL is IP-based
+                #Check for IP address urls, TLD, and keywords
                 if self._is_ip_address(url):
                     num_ip_urls += 1
-
-                # Check TLD
                 if self._has_suspicious_tld(url):
                     num_suspicious_tld += 1
-
-                # Check for suspicious keywords in the domain/path
                 if self._has_suspicious_keyword(url):
                     num_suspicious_keyword += 1
 
-            # if it meets ANY of the criteria above it is suspicious
+            # Calculate total number of suspicious triggers
             num_suspicious_urls = num_ip_urls + num_suspicious_tld + num_suspicious_keyword
+
+            # Create a binary suspicious flag
+            suspicious_url_flag = 1 if num_suspicious_urls > 0 else 0
 
             features.append([
                 num_urls,
                 num_ip_urls,
                 num_suspicious_tld,
                 num_suspicious_keyword,
-                num_suspicious_urls
+                num_suspicious_urls,
+                suspicious_url_flag
             ])
 
         return pd.DataFrame(features, columns=[
@@ -330,45 +356,90 @@ class URLFeatureExtractor(BaseEstimator, TransformerMixin):
             'num_ip_urls',
             'num_suspicious_tld',
             'num_suspicious_keyword',
-            'num_suspicious_urls'
+            'num_suspicious_urls',
+            'suspicious_url_flag'
         ])
 
     def _extract_urls(self, text):
         """
-        Extract all URLs using a regex.
+        Extracts all URLs from a text using regex matching 'http://' or 'https://'.
+
+        Parameters
+        ----------
+        text : str
+            Raw email text.
+
+        Returns
+        -------
+        list
+            List of extracted URL strings.
         """
         return re.findall(r'(https?://[^\s]+)', text)
 
     def _is_ip_address(self, url):
         """
-        Checks if the URL uses an IP address rather than a domain name.
-        For example: http://192.168.0.1/ or http://8.8.8.8/
+        Determines if a URL uses an IP address rather than a domain name.
+
+        Parameters
+        ----------
+        url : str
+            A URL string.
+
+        Returns
+        -------
+        bool
+            True if URL domain is an IP address, False otherwise.
         """
-        # Extract just the domain part
         domain = self._get_domain(url)
-        # A simple check for 1-3 digit groups separated by '.'
         return bool(re.match(r'^(\d{1,3}\.){3}\d{1,3}$', domain))
 
     def _has_suspicious_tld(self, url):
         """
-        Checks if the URL's top-level domain (TLD) is in the suspicious list.
+        Checks if the URL's top-level domain is considered suspicious.
+
+        Parameters
+        ----------
+        url : str
+            A URL string.
+
+        Returns
+        -------
+        bool
+            True if TLD is suspicious, False otherwise.
         """
         ext = tldextract.extract(url)
         return ext.suffix.lower() in self.suspicious_tlds
 
     def _has_suspicious_keyword(self, url):
         """
-        Checks if the URL contains any of the suspicious keywords in the domain or path.
+        Checks if the URL contains any known suspicious keywords.
+
+        Parameters
+        ----------
+        url : str
+            A URL string.
+
+        Returns
+        -------
+        bool
+            True if suspicious keyword found, False otherwise.
         """
         url_lower = url.lower()
         return any(keyword in url_lower for keyword in self.suspicious_keywords)
 
     def _get_domain(self, url):
         """
-        Extracts the domain portion of the URL using tldextract.
-        If you only want the registered domain, combine .domain + .suffix.
+        Extracts and reconstructs the domain portion of a URL.
+
+        Parameters
+        ----------
+        url : str
+            A URL string.
+
+        Returns
+        -------
+        str
+            Registered domain + suffix (e.g., 'example.com').
         """
         ext = tldextract.extract(url)
-        # For instance, if ext.domain = 'google' and ext.suffix = 'com',
-        # domain would be 'google.com'
         return f"{ext.domain}.{ext.suffix}"
