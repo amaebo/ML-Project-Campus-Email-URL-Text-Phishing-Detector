@@ -13,6 +13,8 @@ from sklearn.metrics import (
 )
 import joblib
 import preprocessing
+import os
+
 
 # ======================
 # Load and Preprocess Data
@@ -52,6 +54,7 @@ lr_model.fit(X_train, y_train)
 # ======================
 # Save Baseline Model
 # ======================
+os.makedirs('models', exist_ok=True)
 
 joblib.dump(lr_model, 'models/baseline_logistic_regression_model.pkl')
 
@@ -78,6 +81,7 @@ print("\n=== Test Set Accuracy Score ===")
 print(accuracy_score(y_test, y_test_pred))
 
 # === Save Evaluation Metrics to Table ===
+os.makedirs('evaluations', exist_ok=True)
 
 # Collect key metrics
 accuracy = accuracy_score(y_test, y_test_pred)

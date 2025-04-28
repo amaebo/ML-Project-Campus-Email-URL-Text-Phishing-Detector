@@ -14,6 +14,7 @@ from sklearn.metrics import (
 from scipy.stats import loguniform
 import preprocessing
 import joblib
+import os
 
 # ======================
 # Load and Preprocess Data
@@ -143,11 +144,15 @@ print("\n=== Test Set Accuracy Score ===")
 print(accuracy_score(y_test, y_test_pred))
 
 # Save the trained best model
+os.makedirs('models', exist_ok=True)
+
 joblib.dump(best_lr_model, 'models/best_logistic_regression_model.pkl')
 
 print("\n Model saved successfully as 'best_logistic_regression_model.pkl'")
 
 # === Save Evaluation Metrics to Table ===
+os.makedirs('evaluations', exist_ok=True)
+
 accuracy = accuracy_score(y_test, y_test_pred)
 precision = precision_score(y_test, y_test_pred)
 recall = recall_score(y_test, y_test_pred)
