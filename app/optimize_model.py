@@ -3,7 +3,14 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score
+)
 from scipy.stats import loguniform
 import preprocessing
 import joblib
@@ -136,6 +143,21 @@ print("\n=== Test Set Accuracy Score ===")
 print(accuracy_score(y_test, y_test_pred))
 
 # Save the trained best model
-joblib.dump(best_lr_model, 'best_logistic_regression_model.pkl')
+joblib.dump(best_lr_model, 'models/best_logistic_regression_model.pkl')
 
-print("\n✅ Model saved successfully as 'best_logistic_regression_model.pkl'")
+print("\n Model saved successfully as 'best_logistic_regression_model.pkl'")
+
+# === Save Evaluation Metrics to Table ===
+accuracy = accuracy_score(y_test, y_test_pred)
+precision = precision_score(y_test, y_test_pred)
+recall = recall_score(y_test, y_test_pred)
+f1 = f1_score(y_test, y_test_pred)
+
+# Create simple evaluation table
+optimized_evaluation_results = pd.DataFrame({
+    'Metric': ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
+    'Score': [accuracy, precision, recall, f1]
+})
+
+# Save to CSV inside 'evaluations' folder
+optimized_evaluation_results.to_csv('evaluations/optimized_evaluation_results.csv', index=False)

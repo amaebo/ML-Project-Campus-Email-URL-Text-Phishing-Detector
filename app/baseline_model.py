@@ -3,7 +3,14 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score
+)
 import joblib
 import preprocessing
 
@@ -46,7 +53,7 @@ lr_model.fit(X_train, y_train)
 # Save Baseline Model
 # ======================
 
-joblib.dump(lr_model, 'baseline_logistic_regression_model.pkl')
+joblib.dump(lr_model, 'models/baseline_logistic_regression_model.pkl')
 
 print("\n Baseline model saved successfully as 'baseline_logistic_regression_model.pkl'")
 
@@ -69,3 +76,20 @@ print(f"False Negatives: {FN}")
 
 print("\n=== Test Set Accuracy Score ===")
 print(accuracy_score(y_test, y_test_pred))
+
+# === Save Evaluation Metrics to Table ===
+
+# Collect key metrics
+accuracy = accuracy_score(y_test, y_test_pred)
+precision = precision_score(y_test, y_test_pred)
+recall = recall_score(y_test, y_test_pred)
+f1 = f1_score(y_test, y_test_pred)
+
+# Save into DataFrame
+evaluation_results = pd.DataFrame({
+    'Metric': ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
+    'Score': [accuracy, precision, recall, f1]
+})
+
+# Save to CSV
+evaluation_results.to_csv('evaluations/baseline_evaluation_results.csv', index=False)
