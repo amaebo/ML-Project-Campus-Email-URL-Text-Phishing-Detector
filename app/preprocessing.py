@@ -13,33 +13,35 @@ from scipy.sparse import hstack
 # Feature Engineering
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.preprocessing import OneHotEncoder
-
 from sklearn.base import BaseEstimator, TransformerMixin
+
+import joblib  # For saving and loading models
+import os
 
 PHISHING_KEYWORDS = {"urgent", "verify", "click", "account", "login", "security", "alert", "confirm"}
 
-def preprocess(dataset):
+def preprocess(dataset, vectorizer=None):
     """
     Master pipeline to preprocess dataset:
-    - Extracts sender domain features
-    - Extracts phishing-aware TF-IDF body features
-    - Extracts subject features
-    - Returns model-ready DataFrame
+    - Extracts sender features
+    - Extracts body features (requires optional TF-IDF vectorizer)
+    - Extracts subject phishing score
+    - Extracts URL features
+    - Returns model-ready feature DataFrame
 
     Parameters
     ----------
     dataset : pd.DataFrame
-        Full email dataset with at least 'sender' and 'body' columns.
+        Raw email dataset.
+    
+    vectorizer : TfidfVectorizer or None
+        If None, fits a new vectorizer (training mode).
+        If provided, uses the existing vectorizer (inference mode).
 
     Returns
     -------
     pd.DataFrame
-        Combined feature matrix of encoded sender domains and body TF-IDF features.
-    
-    Raises
-    ------
-    ValueError
-        If the input is not a DataFrame or required columns are missing.
+        Combined feature set.
     """
     # ====== Input Validation ======
     if not isinstance(dataset, pd.DataFrame):
@@ -54,7 +56,7 @@ def preprocess(dataset):
 
     # ====== Feature Extraction ======
     sender_features_df = sender_extraction(dataset)
-    body_features_df = body_extraction(dataset)
+    body_features_df = body_extraction(dataset, vectorizer=vectorizer)
     subject_features_df = subject_extraction(dataset)
 
     # Combine subject + body text for URL extraction
@@ -132,9 +134,11 @@ def sender_extraction(df, top_k=100):
 
 
 # ====== Body Cleaning and Extraction (TF-IDF) ======
-def body_extraction(df):
+def body_extraction(df, vectorizer=None):
     """
     Extracts TF-IDF features from the 'body' column of emails.
+    If vectorizer is provided, applies only transform (for inference).
+    If vectorizer is None, fits a new TF-IDF vectorizer (for training).
 
     Steps:
     - Cleans HTML, URLs, and special characters
@@ -145,11 +149,18 @@ def body_extraction(df):
     ----------
     df : pd.DataFrame
         Input DataFrame with a 'body' column.
+    
+    vectorizer : TfidfVectorizer or None
+        If None, a new vectorizer will be created and fitted (for training).
+        If provided, this vectorizer will be used to transform (for inference).
 
     Returns
     -------
-    pd.DataFrame
-        TF-IDF feature DataFrame.
+    tuple:
+        pd.DataFrame
+            TF-IDF feature DataFrame.
+        vectorizer
+            The fitted or provided TF-IDF vectorizer (useful for saving later).
     
     Raises
     ------
@@ -166,35 +177,44 @@ def body_extraction(df):
         text = BeautifulSoup(text, "html.parser").get_text()  # Remove HTML
         text = re.sub(r'\S+@\S+', 'emailaddr', text)          # Mask emails
         text = re.sub(r'http\S+|www\S+|https\S+', 'urladdr', text)  # Mask URLs
-        text = text.lower()                                   # Lowercase for uniformity
+        text = text.lower()                                   # Lowercase
         text = re.sub(r'[^a-z\s]', '', text)                  # Remove punctuation
         text = re.sub(r'\s+', ' ', text).strip()              # Normalize whitespace
         return text
 
-    # Tokenizer that repeats phishing keywords to increase their TF-IDF weight
-    def phishing_tokenizer(text):
-        tokens = text.split()
-        return tokens + [kw for kw in tokens if kw in PHISHING_KEYWORDS] * 2
-
     # Clean the body column
     df['clean_body'] = df['body'].apply(clean)
 
-    # TF-IDF vectorizer setup
-    vectorizer = TfidfVectorizer(
-        max_features=15000,
-        min_df=5,
-        max_df=0.8,
-        ngram_range=(1, 2),
-        tokenizer=phishing_tokenizer
-    )
+    # Training: Fit new vectorizer
+    if vectorizer is None:
+        vectorizer = TfidfVectorizer(
+            max_features=15000,
+            min_df=5,
+            max_df=0.8,
+            ngram_range=(1, 2),
+            tokenizer=phishing_tokenizer
+        )
+        tfidf_matrix = vectorizer.fit_transform(df['clean_body'])
 
-    # Fit and transform text into TF-IDF matrix
-    tfidf_matrix = vectorizer.fit_transform(df['clean_body'])
+        # Save the vectorizer 
+        os.makedirs('models', exist_ok=True)
+        joblib.dump(vectorizer, 'models/tfidf_vectorizer.pkl')
+        print("[INFO] TF-IDF vectorizer saved to 'models/tfidf_vectorizer.pkl'")
+    else:
+        # Inference: Use provided vectorizer
+        tfidf_matrix = vectorizer.transform(df['clean_body'])
 
     # Convert to DataFrame
     tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=vectorizer.get_feature_names_out())
 
     return tfidf_df
+
+def phishing_tokenizer(text):
+    """
+    Custom tokenizer that repeats phishing keywords to boost TF-IDF weight.
+    """
+    tokens = text.split()
+    return tokens + [kw for kw in tokens if kw in PHISHING_KEYWORDS] * 2
 
 # ====== Subject Feature Extraction ======
 def subject_extraction(df):

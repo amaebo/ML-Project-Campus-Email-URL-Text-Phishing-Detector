@@ -13,17 +13,22 @@ import os
 app = Flask(__name__)
 
 # ======================
-# Load Trained Model
+# Load Trained Model and TF-IDF Vectorizer
 # ======================
 
-# Make sure model path exists
 MODEL_PATH = 'models/best_logistic_regression_model.pkl'
+VECTORIZER_PATH = 'models/tfidf_vectorizer.pkl'
 
+# Ensure paths exist
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model not found at {MODEL_PATH}. Please train and save your model first.")
 
-# Load the saved Logistic Regression model
+if not os.path.exists(VECTORIZER_PATH):
+    raise FileNotFoundError(f"Vectorizer not found at {VECTORIZER_PATH}. Please train and save your vectorizer first.")
+
+# Load model and vectorizer
 model = joblib.load(MODEL_PATH)
+vectorizer = joblib.load(VECTORIZER_PATH)
 
 # ======================
 # Define Predict Endpoint
@@ -40,7 +45,7 @@ def predict():
     # Get JSON data
     data = request.get_json()
 
-    # Validate input fields
+    # Validate input
     required_fields = ['sender', 'subject', 'body']
     for field in required_fields:
         if field not in data:
@@ -49,26 +54,25 @@ def predict():
     # Construct a one-row DataFrame from input
     email_df = pd.DataFrame([{
         'sender': data['sender'],
-        'receiver': '',  # Placeholder (for preprocessing)
-        'date': '',      # Placeholder
+        'receiver': '',
+        'date': '',
         'subject': data['subject'],
         'body': data['body'],
-        'label': 0,      # Placeholder
-        'urls': ''       # Placeholder
+        'label': 0,
+        'urls': ''
     }])
 
-    # Preprocess the email
-    X = preprocessing.preprocess(email_df)
+    # Preprocess using the pre-loaded vectorizer
+    X = preprocessing.preprocess(email_df, vectorizer=vectorizer)
     X = X.fillna(0)
 
-    # Make prediction
+    # Predict
     prediction = model.predict(X)[0]
 
-    # Return prediction
     return jsonify({'prediction': int(prediction)})
 
 # ======================
-# Run the App
+# Run Flask App
 # ======================
 
 if __name__ == '__main__':
