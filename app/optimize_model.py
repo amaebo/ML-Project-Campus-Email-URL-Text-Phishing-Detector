@@ -25,6 +25,9 @@ raw_df = pd.read_csv('data/CEAS-08.csv')
 
 # Preprocess features
 X = preprocessing.preprocess(raw_df.copy())
+# Save feature names for later use in the API
+os.makedirs('models', exist_ok=True)
+joblib.dump(X.columns.tolist(), 'models/feature_names.pkl')
 X = X.fillna(0)
 
 # Correct y to match surviving rows

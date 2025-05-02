@@ -18,13 +18,12 @@ from sklearn.base import BaseEstimator, TransformerMixin
 import joblib  # For saving and loading models
 import os
 
-PHISHING_KEYWORDS = {"urgent", "verify", "click", "account", "login", "security", "alert", "confirm"}
 
-def preprocess(dataset, vectorizer=None):
+def preprocess(dataset, encoder=None, vectorizer=None):
     """
     Master pipeline to preprocess dataset:
     - Extracts sender features
-    - Extracts body features (requires optional TF-IDF vectorizer)
+    - Extracts body features (TF-IDF vectorizer)
     - Extracts subject phishing score
     - Extracts URL features
     - Returns model-ready feature DataFrame
@@ -32,18 +31,22 @@ def preprocess(dataset, vectorizer=None):
     Parameters
     ----------
     dataset : pd.DataFrame
-        Raw email dataset.
-    
+        Raw email dataset with required columns.
+
     vectorizer : TfidfVectorizer or None
-        If None, fits a new vectorizer (training mode).
-        If provided, uses the existing vectorizer (inference mode).
+        If None, fits a new vectorizer (for training).
+        If provided, uses the existing one (for inference).
+
+    encoder : OneHotEncoder or None
+        If None, fits and saves a new encoder (for training).
+        If provided, uses the existing one (for inference).
 
     Returns
     -------
     pd.DataFrame
         Combined feature set.
     """
-    # ====== Input Validation ======
+    # === Basic Validation ===
     if not isinstance(dataset, pd.DataFrame):
         raise ValueError("Input dataset must be a pandas DataFrame.")
     if dataset.empty:
@@ -54,17 +57,17 @@ def preprocess(dataset, vectorizer=None):
     if missing_columns:
         raise ValueError(f"Missing expected columns: {', '.join(missing_columns)}")
 
-    # ====== Feature Extraction ======
-    sender_features_df = sender_extraction(dataset)
+    # === Feature Extraction ===
+    sender_features_df = sender_extraction(dataset, encoder=encoder)
     body_features_df = body_extraction(dataset, vectorizer=vectorizer)
     subject_features_df = subject_extraction(dataset)
 
-    # Combine subject + body text for URL extraction
+    # Combine subject + body for URL analysis
     combined_text = dataset['subject'].fillna('') + ' ' + dataset['body'].fillna('')
     url_extractor = URLFeatureExtractor()
     url_features_df = url_extractor.transform(combined_text)
 
-    # ====== Combine Features ======
+    # === Combine All Features ===
     final_features_df = pd.concat([
         sender_features_df.reset_index(drop=True),
         body_features_df.reset_index(drop=True),
@@ -76,55 +79,68 @@ def preprocess(dataset, vectorizer=None):
 
 
 # ====== Sender Extraction and Preprocessing ======
-def sender_extraction(df, top_k=100):
+
+def sender_extraction(df, encoder=None, top_k=100):
     """
     Extracts sender features using:
-    - One-hot encoding for top-K domains
-    - A binary 'domain_other' flag for rare domains
-    - Log-frequency encoding for all domains
+    - One-hot encoding for top-K domains (via encoder or newly fitted)
+    - Binary 'domain_other' flag for unseen domains
+    - Log-frequency encoding for domain popularity
 
     Parameters
     ----------
     df : pd.DataFrame
-        DataFrame containing a 'sender' column with email addresses.
-    
-    top_k : int, optional
-        Number of most frequent domains to one-hot encode. Default is 100.
-    
+        DataFrame containing a 'sender' column.
+
+    encoder : OneHotEncoder or None
+        If None, fits and saves a new encoder (training mode).
+        If provided, reuses the encoder (inference mode).
+
+    top_k : int
+        Number of top sender domains to one-hot encode (ignored if encoder is provided).
+
     Returns
     -------
     pd.DataFrame
-        DataFrame with three types of features:
-        - One-hot columns for top domains
-        - Binary 'domain_other' flag
-        - Continuous 'domain_frequency' column (log-scaled)
-    
-    Raises
-    ------
-    ValueError
-        If 'sender' column is missing.
+        Encoded sender features.
     """
     if 'sender' not in df.columns:
         raise ValueError("The DataFrame must contain a 'sender' column.")
 
-    # Step 1: Extract sender domain
+    # Extract domain from sender email
     df['sender_email'] = df['sender'].str.extract(r'<(.*?)>')[0].fillna(df['sender'])
     df['sender_domain'] = df['sender_email'].str.extract(r'@([a-zA-Z0-9.-]+)')[0].str.lower()
 
-    # Step 2: Calculate frequency (and log-frequency)
+    # Frequency encode domain (log-scale for smoothing)
     domain_counts = df['sender_domain'].value_counts()
     df['domain_frequency'] = df['sender_domain'].map(domain_counts)
-    df['domain_frequency'] = np.log1p(df['domain_frequency'])  # log(1 + count)
+    df['domain_frequency'] = np.log1p(df['domain_frequency'])
 
-    # Step 3: One-hot encode top-K domains
-    top_domains = domain_counts.nlargest(top_k).index.tolist()
-    df['domain_other'] = (~df['sender_domain'].isin(top_domains)).astype(int)
+    # === One-Hot Encode Top-K Domains ===
+    if encoder is None:
+        # Get most common domains
+        top_domains = domain_counts.nlargest(top_k).index.tolist()
 
-    encoder = OneHotEncoder(categories=[top_domains], sparse_output=False, handle_unknown='ignore')
-    domain_ohe = encoder.fit_transform(df[['sender_domain']])
+        # Create binary feature: domain_other = 1 if not in top-K
+        df['domain_other'] = (~df['sender_domain'].isin(top_domains)).astype(int)
+
+        # Fit new encoder and transform
+        encoder = OneHotEncoder(categories=[top_domains], sparse_output=False, handle_unknown='ignore')
+        domain_ohe = encoder.fit_transform(df[['sender_domain']])
+
+        # Save fitted encoder to disk for reuse
+        os.makedirs('models', exist_ok=True)
+        joblib.dump(encoder, 'models/sender_encoder.pkl')
+    else:
+        # Use existing encoder (from joblib)
+        top_domains = encoder.categories_[0]
+        df['domain_other'] = (~df['sender_domain'].isin(top_domains)).astype(int)
+        domain_ohe = encoder.transform(df[['sender_domain']])
+
+    # Convert one-hot encoding to DataFrame with proper column names
     domain_ohe_df = pd.DataFrame(domain_ohe, columns=encoder.get_feature_names_out(['sender_domain']))
 
-    # Step 4: Build final feature set
+    # Concatenate all sender-related features
     sender_features_df = pd.concat([
         domain_ohe_df.reset_index(drop=True),
         df[['domain_other', 'domain_frequency']].reset_index(drop=True)
@@ -192,7 +208,6 @@ def body_extraction(df, vectorizer=None):
             min_df=5,
             max_df=0.8,
             ngram_range=(1, 2),
-            tokenizer=phishing_tokenizer
         )
         tfidf_matrix = vectorizer.fit_transform(df['clean_body'])
 
@@ -209,12 +224,6 @@ def body_extraction(df, vectorizer=None):
 
     return tfidf_df
 
-def phishing_tokenizer(text):
-    """
-    Custom tokenizer that repeats phishing keywords to boost TF-IDF weight.
-    """
-    tokens = text.split()
-    return tokens + [kw for kw in tokens if kw in PHISHING_KEYWORDS] * 2
 
 # ====== Subject Feature Extraction ======
 def subject_extraction(df):
