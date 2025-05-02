@@ -22,18 +22,16 @@ import os
 
 # Load raw dataset
 raw_df = pd.read_csv('data/CEAS-08.csv')
+raw_df = raw_df.drop(columns=['receiver', 'date','urls'])  # Drop unused data columns
+raw_df = raw_df.dropna(subset=['sender', 'subject', 'body', 'label'])  # Drop rows with missing values in these columns
 
-# Preprocess features
-X = preprocessing.preprocess(raw_df.copy())
+y = raw_df['label']
+X = preprocessing.preprocess(raw_df.copy()) # Preprocess features
+X = X.fillna(0)
+
 # Save feature names for later use in the API
 os.makedirs('models', exist_ok=True)
 joblib.dump(X.columns.tolist(), 'models/feature_names.pkl')
-
-X = X.fillna(0)
-
-# Correct y to match surviving rows
-y = raw_df.loc[X.index, 'label']
-
 # ======================
 # Train-Test Split
 # ======================
@@ -59,7 +57,6 @@ lr_model.fit(X_train, y_train)
 # Save Baseline Model
 # ======================
 os.makedirs('models', exist_ok=True)
-
 joblib.dump(lr_model, 'models/baseline_logistic_regression_model.pkl')
 
 print("\n Baseline model saved successfully as 'baseline_logistic_regression_model.pkl'")

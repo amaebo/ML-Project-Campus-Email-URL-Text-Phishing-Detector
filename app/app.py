@@ -59,13 +59,9 @@ def predict():
     # Build a one-row DataFrame from input
     email_df = pd.DataFrame([{
         'sender': data['sender'],
-        'receiver': '',
-        'date': '',
         'subject': data['subject'],
-        'body': data['body'],
-        'label': 0,
-        'urls': ''
-    }])
+        'body': data['body']
+        }]) 
 
     # Preprocess input using loaded encoder and vectorizer
     X = preprocessing.preprocess(email_df, encoder=sender_encoder, vectorizer=vectorizer)
