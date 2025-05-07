@@ -158,7 +158,6 @@ def body_extraction(df, vectorizer=None):
 
     Steps:
     - Cleans HTML, URLs, and special characters
-    - Tokenizes while boosting phishing keywords
     - Applies TF-IDF vectorization using unigrams and bigrams
 
     Parameters
@@ -172,11 +171,8 @@ def body_extraction(df, vectorizer=None):
 
     Returns
     -------
-    tuple:
         pd.DataFrame
             TF-IDF feature DataFrame.
-        vectorizer
-            The fitted or provided TF-IDF vectorizer (useful for saving later).
     
     Raises
     ------

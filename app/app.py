@@ -71,6 +71,7 @@ def predict():
     prediction = model.predict(X)[0]
 
     return jsonify({'prediction': int(prediction)})
+    # # Example: {'prediction': 1} for phishing, {'prediction': 0} for legitimate
 
 # ======================
 # Run App
