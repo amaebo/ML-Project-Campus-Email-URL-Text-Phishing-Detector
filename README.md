@@ -30,6 +30,8 @@ pip install -r requirements.txt
 
 ---
 
+### **3. Running the API**
+
 ## Dataset Sources
 
 
@@ -39,10 +41,3 @@ pip install -r requirements.txt
 
 - **Ama Ebong**
 - **Mai Nguyen**
-
-
-# Updates
- Date       | Contributor   | Update Description                                          |
-|------------|---------------|-------------------------------------------------------------|
-|3/1/2025|Ama & Mai| Project Planning and Repository set up |
-|4/1/2025|Ama| Importing Dataset, Started sender preprocessing|
