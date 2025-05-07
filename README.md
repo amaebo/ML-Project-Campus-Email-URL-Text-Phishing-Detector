@@ -106,8 +106,11 @@ To test with your own email data:
    ```
 
 ## Dataset Sources
+We used the following publicly available datasets for training and evaluation:
 
-
+- **Phishing Email Dataset by Naser Abdullah Alam (Kaggle)**  
+  A curated dataset specifically targeting phishing email detection, containing labeled examples suitable for training and testing classification models.  
+  Link: https://www.kaggle.com/datasets/naserabdullahalam/phishing-email-dataset
 ---
 
 ## Contributors
