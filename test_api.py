@@ -3,7 +3,7 @@
 import requests
 import json
 
-# URL of your local Flask API
+# URL of local Flask API
 API_URL = 'http://127.0.0.1:5000/predict'
 
 # Example email data to test
