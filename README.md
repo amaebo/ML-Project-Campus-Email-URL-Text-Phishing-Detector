@@ -29,8 +29,41 @@ pip install -r requirements.txt
 ```
 
 ---
+### **3. Training the Models**
 
-### **3. Running the API**
+To train the phishing detection models, run the following scripts in order.
+
+> ⚠️ **Disclaimer:** Depending on your machine and dataset size, model training — especially the optimization step — may take up to **45 minutes** to complete.
+
+#### 1. Baseline Model
+
+This script trains a basic logistic regression model using default hyperparameters and the preprocessed features.
+
+```bash
+python baseline_model.py
+```
+#### 2. Optimized Model
+This script performs hyperparameter tuning using RandomizedSearchCV to improve model performance.
+```bash
+python optimize_model.py
+```
+
+#### 3. Saved Models and Evaluation Metrics
+The models are saved to the following files under /models:
+   - baseline_logistic_regression_model.pkl
+   - best_logistic_regression_model.pkl
+     
+We evaluate both the baseline and optimized models using the following metrics:
+   - Accuracy
+   - Precision
+   - Recall
+   - F1 Score
+
+Each score is printed to the console and saved to the CSV files: 
+   - baseline_evaluation_results.csv
+   - optimized_evaluation_results.csv
+
+### **4. Running the API**
 
 #### **Step 1: Start the Flask API**
 
